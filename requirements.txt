@@ -1,0 +1,46 @@
+# Python Dependencies for AWS Crypto & Forex Trading System
+# Install with: pip install -r requirements.txt
+
+# AWS SDK
+boto3==1.34.0
+botocore==1.34.0
+
+# Data Processing
+pandas==2.1.4
+numpy==1.26.2
+
+# Machine Learning
+scikit-learn==1.3.2
+joblib==1.3.2
+
+# Optional: Advanced ML (uncomment if needed)
+# tensorflow==2.15.0
+# xgboost==2.0.2
+
+# HTTP Requests
+requests==2.31.0
+urllib3==2.1.0
+
+# Time and Date Processing
+python-dateutil==2.8.2
+pytz==2023.3
+
+# JSON Processing
+jsonschema==4.20.0
+
+# Logging
+logging-enhanced==0.1.0
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Development Dependencies (optional)
+pytest==7.4.3
+pytest-mock==3.12.0
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.1
+
+# For local testing
+moto==4.2.14  # Mock AWS services
+localstack==3.0.0  # Local AWS cloud stack

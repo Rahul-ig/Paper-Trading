@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto & Forex AI Trading Dashboard</title>
+    
+    <!-- CSS Frameworks -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- AWS SDK no longer needed - data fetched via API Gateway -->
+    <!-- <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1469.0.min.js"></script> -->
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation Header -->
+        <nav class="navbar navbar-expand-md navbar-dark bg-dark shadow">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">
+                    <i class="fas fa-chart-line me-2"></i>
+                    AI Trading Dashboard
+                </a>
+                
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navbarContent">
+                    <div class="navbar-nav ms-auto align-items-md-center">
+                        <button class="btn btn-outline-light btn-sm me-md-3 my-2 my-md-0" onclick="dashboard.loadDashboardData()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <span class="navbar-text me-md-3 my-1 my-md-0">
+                            <i class="fas fa-circle text-success me-1"></i>
+                            <span id="connection-status">Connected</span>
+                        </span>
+                        <span class="navbar-text my-1 my-md-0">
+                            Last Update: <span id="last-update">--:--</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="container-fluid mt-4">
+            <!-- Portfolio Summary Cards -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Portfolio Value</h6>
+                                    <h3 id="portfolio-value">$50.00</h3>
+                                    <small id="portfolio-change">+0.00%</small>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-wallet fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-6 col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Total P&L</h6>
+                                    <h3 id="total-pnl">$0.00</h3>
+                                    <small id="win-rate">Win Rate: 0%</small>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-chart-line fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-6 col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">Active Positions</h6>
+                                    <h3 id="active-positions">0</h3>
+                                    <small id="total-trades">Total Trades: 0</small>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-coins fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-6 col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="card-title">AI Accuracy</h6>
+                                    <h3 id="ai-accuracy">0%</h3>
+                                    <small>Last Model Updated</small>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-robot fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Market Overview Cards -->
+            <div class="row g-2 mb-4">
+                <div class="col-4 col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center p-2 p-md-3">
+                            <i class="fas fa-bitcoin fa-lg fa-md-2x text-warning mb-1 mb-md-2"></i>
+                            <h6 class="card-title small">Crypto Assets</h6>
+                            <h4 id="crypto-count">0</h4>
+                            <small class="text-muted">Live Symbols</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-4 col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center p-2 p-md-3">
+                            <i class="fas fa-exchange-alt fa-lg fa-md-2x text-info mb-1 mb-md-2"></i>
+                            <h6 class="card-title small">Forex Pairs</h6>
+                            <h4 id="forex-count">0</h4>
+                            <small class="text-muted">Live Pairs</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-4 col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center p-2 p-md-3">
+                            <i class="fas fa-chart-bar fa-lg fa-md-2x text-success mb-1 mb-md-2"></i>
+                            <h6 class="card-title small">Top Gainer</h6>
+                            <h4 id="top-gainer">--</h4>
+                            <small class="text-muted" id="top-gainer-change">0%</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-4 col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center p-2 p-md-3">
+                            <i class="fas fa-chart-line-down fa-lg fa-md-2x text-danger mb-1 mb-md-2"></i>
+                            <h6 class="card-title small">Top Loser</h6>
+                            <h4 id="top-loser">--</h4>
+                            <small class="text-muted" id="top-loser-change">0%</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-4 col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center p-2 p-md-3">
+                            <i class="fas fa-clock fa-lg fa-md-2x text-primary mb-1 mb-md-2"></i>
+                            <h6 class="card-title small">Last Data Update</h6>
+                            <h6 id="data-age">--:--</h6>
+                            <small class="text-muted">minutes ago</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-4 col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center p-2 p-md-3">
+                            <i class="fas fa-database fa-lg fa-md-2x text-secondary mb-1 mb-md-2"></i>
+                            <h6 class="card-title small">Data Points</h6>
+                            <h4 id="total-data-points">0</h4>
+                            <small class="text-muted">Total Records</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="row mb-4">
+                <!-- Portfolio Breakdown -->
+                <div class="col-12 col-lg-8">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-chart-pie me-2"></i>
+                                Portfolio Breakdown
+                            </h5>
+                            <span class="badge bg-primary" id="portfolio-status-badge">Live</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3 mb-3">
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center p-2 rounded" style="background: rgba(102,126,234,0.1);">
+                                        <small class="text-muted d-block">Initial Balance</small>
+                                        <strong class="text-primary">$50.00</strong>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center p-2 rounded" style="background: rgba(40,167,69,0.1);">
+                                        <small class="text-muted d-block">Current Value</small>
+                                        <strong id="breakdown-value" class="text-success">$0.00</strong>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center p-2 rounded" style="background: rgba(255,193,7,0.1);">
+                                        <small class="text-muted d-block">Cash Available</small>
+                                        <strong id="breakdown-cash" class="text-warning">$0.00</strong>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="text-center p-2 rounded" style="background: rgba(220,53,69,0.1);">
+                                        <small class="text-muted d-block">Invested</small>
+                                        <strong id="breakdown-invested" class="text-danger">$0.00</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <h6 class="text-muted mb-2"><i class="fas fa-coins me-1"></i> Positions by Asset</h6>
+                            <div id="position-bars">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Asset Allocation -->
+                <div class="col-12 col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-chart-pie me-2"></i>
+                                Asset Allocation
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="allocation-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Market Data and Trading Activity -->
+            <div class="row mb-4">
+                <!-- Live Market Prices -->
+                <div class="col-12 col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-dollar-sign me-2"></i>
+                                Live Market Prices
+                            </h5>
+                        </div>
+                        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                            <div id="market-prices">
+                                <!-- Live prices will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Trades -->
+                <div class="col-12 col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-exchange-alt me-2"></i>
+                                Recent Trades
+                            </h5>
+                        </div>
+                        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                            <div id="recent-trades">
+                                <!-- Recent trades will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trading Insights and Alerts -->
+            <div class="row mb-4">
+                <!-- Trading Insights -->
+                <div class="col-12 col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-brain me-2"></i>
+                                Trading Insights
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <!-- AI Model Stats -->
+                                <div class="col-12 col-md-6">
+                                    <div class="p-3 rounded border">
+                                        <h6 class="mb-3"><i class="fas fa-robot text-primary me-2"></i>AI Model</h6>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Overall Accuracy</span>
+                                            <strong id="insight-accuracy">--</strong>
+                                        </div>
+                                        <div class="progress mb-2" style="height: 8px;">
+                                            <div class="progress-bar bg-primary" id="accuracy-bar" style="width: 0%"></div>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Crypto Accuracy</span>
+                                            <strong id="insight-crypto-accuracy">--</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Forex Accuracy</span>
+                                            <strong id="insight-forex-accuracy">--</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Model Age</span>
+                                            <strong id="insight-model-age">--</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Accuracy Trend</span>
+                                            <strong id="insight-trend">--</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Models Trained</span>
+                                            <strong id="insight-total-models">0</strong>
+                                        </div>
+                                        <hr class="my-2">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Crypto Trades</span>
+                                            <strong id="insight-crypto-trades">0</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Forex Trades</span>
+                                            <strong id="insight-forex-trades">0</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Avg Trade Size</span>
+                                            <strong id="insight-avg-trade">$0.00</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Risk & Performance -->
+                                <div class="col-12 col-md-6">
+                                    <div class="p-3 rounded border">
+                                        <h6 class="mb-3"><i class="fas fa-shield-alt text-warning me-2"></i>Risk & Performance</h6>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Total Volume</span>
+                                            <strong id="insight-volume">$0.00</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Win Rate</span>
+                                            <strong id="insight-win-rate">0%</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Profit Factor</span>
+                                            <strong id="insight-profit-factor">--</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Expectancy</span>
+                                            <strong id="insight-expectancy">$0.00</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Sharpe Ratio</span>
+                                            <strong id="insight-sharpe">0.00</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Max Drawdown</span>
+                                            <strong id="insight-drawdown" class="text-danger">0%</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Daily VaR</span>
+                                            <strong id="insight-var" class="text-warning">$0.00</strong>
+                                        </div>
+                                        <hr class="my-2">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Avg Win / Loss</span>
+                                            <strong id="insight-avg-wl"><span class="text-success">$0</span> / <span class="text-danger">$0</span></strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Largest Win / Loss</span>
+                                            <strong id="insight-largest-wl"><span class="text-success">$0</span> / <span class="text-danger">$0</span></strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Best / Worst Streak</span>
+                                            <strong id="insight-streak"><span class="text-success">0</span> / <span class="text-danger">0</span></strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Cash Utilization</span>
+                                            <strong id="insight-utilization">0%</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span class="text-muted">Unrealized P&L</span>
+                                            <strong id="insight-unrealized-pnl">$0.00</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Alerts -->
+                <div class="col-12 col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-bell me-2"></i>
+                                System Alerts
+                            </h5>
+                        </div>
+                        <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                            <div id="system-alerts">
+                                <!-- Alerts will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Open Positions Table -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-list me-2"></i>
+                                Open Positions
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Symbol</th>
+                                            <th>Type</th>
+                                            <th>Quantity</th>
+                                            <th>Entry Price</th>
+                                            <th>Current Price</th>
+                                            <th>P&L</th>
+                                            <th>P&L %</th>
+                                            <th>Entry Time</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="positions-table">
+                                        <!-- Open positions will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="d-none">
+            <div class="loading-content">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3">Loading trading data...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script src="dashboard.js"></script>
+</body>
+</html>

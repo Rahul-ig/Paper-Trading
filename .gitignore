@@ -1,0 +1,68 @@
+# Compiled class files
+*.class
+
+# Build directories
+aws-java-lambdas/target/
+build/
+dist/
+out/
+
+# Maven
+*.jar
+!**/src/**/
+.mvn/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# Python Lambda layers (large binary dependencies)
+python-ai-trading/layers/
+
+# Credentials & secrets — NEVER commit real credentials
+*.env
+!*.template.env
+config/aws-config.env
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Terraform / SAM
+.aws-sam/
+samconfig.toml
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Package outputs
+python-ai-trading/package/*.whl
+python-ai-trading/package/*.tar.gz
+
+# Java upgrade tool artifacts
+.github/

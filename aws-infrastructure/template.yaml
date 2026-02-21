@@ -1,0 +1,582 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Crypto & Forex AI Trading System - Complete AWS Infrastructure'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+  
+  S3BucketModels:
+    Type: String
+    Default: 'forex-ai-models'
+    Description: S3 bucket for storing AI models
+  
+  InitialWalletBalance:
+    Type: Number
+    Default: 50.0
+    Description: Initial paper trading wallet balance in USD
+
+Globals:
+  Function:
+    Runtime: java21
+    MemorySize: 1024
+    Timeout: 300
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        REGION: !Ref 'AWS::Region'
+        S3_BUCKET_MODELS: !Ref S3BucketModels
+        DYNAMODB_CRYPTO_TABLE: !Ref CryptoPriceTable
+        DYNAMODB_FOREX_TABLE: !Ref ForexPriceTable
+        DYNAMODB_TRADING_TABLE: !Ref TradingHistoryTable
+        DYNAMODB_AI_MODELS_TABLE: !Ref AIModelMetadataTable
+        INITIAL_BALANCE: !Ref InitialWalletBalance
+
+Resources:
+  # Note: Using existing S3 bucket 'forex-ai-models' - no need to create it
+  # If bucket doesn't exist, create it manually: aws s3 mb s3://forex-ai-models
+
+  # DynamoDB Tables
+  CryptoPriceTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'CryptoPriceData-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: symbol
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: symbol
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: CryptoTradingData
+
+  ForexPriceTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'ForexPriceData-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pair
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pair
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: ForexTradingData
+
+  TradingHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'TradingHistory-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tradeId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+        - AttributeName: symbol
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tradeId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: SymbolIndex
+          KeySchema:
+            - AttributeName: symbol
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: PaperTradingHistory
+
+  AIModelMetadataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'AIModelMetadata-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: modelId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: modelId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: AIModelTracking
+
+  NewsDataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'NewsData-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: newsId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+        - AttributeName: category
+          AttributeType: S
+      KeySchema:
+        - AttributeName: newsId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: CategoryIndex
+          KeySchema:
+            - AttributeName: category
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: NewsAndSentimentData
+
+  # Lambda Functions
+  CryptoDataFetcherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'CryptoDataFetcher-${Environment}'
+      CodeUri: ../aws-java-lambdas/target/crypto-forex-lambdas-1.0.0.jar
+      Handler: com.trading.handler.CryptoDataFetcher::handleRequest
+      Description: Fetches cryptocurrency price data from multiple APIs
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CryptoPriceTable
+        - S3ReadPolicy:
+            BucketName: !Ref S3BucketModels
+      Events:
+        ScheduledExecution:
+          Type: Schedule
+          Properties:
+            Schedule: rate(15 minutes)
+            Input: '{"requestType": "scheduled"}'
+
+  ForexDataFetcherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'ForexDataFetcher-${Environment}'
+      CodeUri: ../aws-java-lambdas/target/crypto-forex-lambdas-1.0.0.jar
+      Handler: com.trading.handler.ForexDataFetcher::handleRequest
+      Description: Fetches forex exchange rate data from multiple APIs
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ForexPriceTable
+        - S3ReadPolicy:
+            BucketName: !Ref S3BucketModels
+      Events:
+        ScheduledExecution:
+          Type: Schedule
+          Properties:
+            Schedule: rate(15 minutes)
+            Input: '{"requestType": "scheduled"}'
+
+  NewsDataFetcherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'NewsDataFetcher-${Environment}'
+      CodeUri: ../aws-java-lambdas/target/crypto-forex-lambdas-1.0.0.jar
+      Handler: com.trading.handler.NewsDataFetcher::handleRequest
+      Description: Fetches financial news and sentiment data
+      Timeout: 600
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref NewsDataTable
+      Events:
+        ScheduledExecution:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+            Input: '{"requestType": "scheduled"}'
+
+  # Lambda Layer for ML dependencies (scikit-learn, scipy, numpy, pandas, joblib)
+  MLDependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub 'ml-dependencies-${Environment}'
+      Description: Machine learning dependencies for AI trainer (scikit-learn, scipy, numpy, pandas, joblib)
+      ContentUri: ../python-ai-trading/layers/ml-deps/
+      CompatibleRuntimes:
+        - python3.12
+      RetentionPolicy: Delete
+
+  PythonAITrainerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'PythonAITrainer-${Environment}'
+      CodeUri: ../python-ai-trading/ai-trainer-package/
+      Handler: ai_trainer.lambda_handler
+      Runtime: python3.12
+      MemorySize: 3008
+      Timeout: 900
+      Description: AI model training for crypto and forex prediction
+      Layers:
+        - !Ref MLDependenciesLayer
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CryptoPriceTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref ForexPriceTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref NewsDataTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AIModelMetadataTable
+        - S3CrudPolicy:
+            BucketName: !Ref S3BucketModels
+      Events:
+        ScheduledTraining:
+          Type: Schedule
+          Properties:
+            Schedule: rate(6 hours)
+            Input: '{"requestType": "training", "modelType": "ensemble"}'
+
+  PaperTraderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'PaperTrader-${Environment}'
+      CodeUri: ../python-ai-trading/package/
+      Handler: paper_trader.lambda_handler
+      Runtime: python3.12
+      MemorySize: 1024
+      Timeout: 300
+      Description: Executes paper trades based on AI predictions
+      Environment:
+        Variables:
+          INITIAL_WALLET_BALANCE: !Ref InitialWalletBalance
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CryptoPriceTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref ForexPriceTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref AIModelMetadataTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TradingHistoryTable
+        - S3ReadPolicy:
+            BucketName: !Ref S3BucketModels
+
+  DashboardUpdaterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'DashboardUpdater-${Environment}'
+      CodeUri: ../python-ai-trading/package/
+      Handler: dashboard_updater.lambda_handler
+      Runtime: python3.12
+      MemorySize: 512
+      Timeout: 120
+      Description: Updates dashboard data and sends notifications
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref TradingHistoryTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref CryptoPriceTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref ForexPriceTable
+        - S3CrudPolicy:
+            BucketName: !Ref S3BucketModels
+
+  # Step Functions
+  TradingWorkflowRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaInvokePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt CryptoDataFetcherFunction.Arn
+                  - !GetAtt ForexDataFetcherFunction.Arn
+                  - !GetAtt NewsDataFetcherFunction.Arn
+                  - !GetAtt PythonAITrainerFunction.Arn
+                  - !GetAtt PaperTraderFunction.Arn
+                  - !GetAtt DashboardUpdaterFunction.Arn
+        - PolicyName: DynamoDBAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt AIModelMetadataTable.Arn
+                  - !GetAtt TradingHistoryTable.Arn
+                  - !GetAtt CryptoPriceTable.Arn
+                  - !GetAtt ForexPriceTable.Arn
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${S3BucketModels}'
+                  - !Sub 'arn:aws:s3:::${S3BucketModels}/*'
+
+  TradingWorkflowStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub 'TradingWorkflow-${Environment}'
+      DefinitionString: !Sub |
+        {
+          "Comment": "Trading Data Collection and AI Training Workflow",
+          "StartAt": "ParallelDataFetch",
+          "States": {
+            "ParallelDataFetch": {
+              "Type": "Parallel",
+              "Comment": "Fetch crypto, forex, and news data in parallel",
+              "Branches": [
+                {
+                  "StartAt": "FetchCryptoData",
+                  "States": {
+                    "FetchCryptoData": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::lambda:invoke",
+                      "Parameters": {
+                        "FunctionName": "${CryptoDataFetcherFunction}",
+                        "Payload": {
+                          "requestType": "stepfunction",
+                          "timestamp.$": "$$.Execution.StartTime"
+                        }
+                      },
+                      "ResultPath": "$.cryptoResult",
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "FetchForexData",
+                  "States": {
+                    "FetchForexData": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::lambda:invoke", 
+                      "Parameters": {
+                        "FunctionName": "${ForexDataFetcherFunction}",
+                        "Payload": {
+                          "requestType": "stepfunction",
+                          "timestamp.$": "$$.Execution.StartTime"
+                        }
+                      },
+                      "ResultPath": "$.forexResult",
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "FetchNewsData",
+                  "States": {
+                    "FetchNewsData": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::lambda:invoke",
+                      "Parameters": {
+                        "FunctionName": "${NewsDataFetcherFunction}",
+                        "Payload": {
+                          "requestType": "stepfunction", 
+                          "timestamp.$": "$$.Execution.StartTime"
+                        }
+                      },
+                      "ResultPath": "$.newsResult",
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "ResultPath": "$.fetchResults",
+              "Next": "ProcessPaperTrades"
+            },
+            "ProcessPaperTrades": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${PaperTraderFunction}",
+                "Payload": {
+                  "requestType": "trade_execution",
+                  "useLatestModel": true,
+                  "timestamp.$": "$$.Execution.StartTime"
+                }
+              },
+              "ResultSelector": {
+                "tradingData.$": "$.Payload"
+              },
+              "ResultPath": "$.trading",
+              "Next": "UpdateDashboard"
+            },
+            "UpdateDashboard": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${DashboardUpdaterFunction}",
+                "Payload": {
+                  "requestType": "update",
+                  "timestamp.$": "$$.Execution.StartTime"
+                }
+              },
+              "End": true
+            }
+          }
+        }
+      RoleArn: !GetAtt TradingWorkflowRole.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: TradingOrchestration
+
+  # CloudWatch Events for triggering workflows
+  TradingWorkflowScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'TradingWorkflowSchedule-${Environment}'
+      Description: 'Trigger trading workflow every 30 minutes'
+      ScheduleExpression: 'rate(30 minutes)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TradingWorkflowStateMachine.Arn
+          Id: 'TradingWorkflowTarget'
+          RoleArn: !GetAtt EventBridgeRole.Arn
+          Input: '{"requestType": "scheduled", "triggerSource": "cloudwatch"}'
+
+  AITrainingScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'AITrainingSchedule-${Environment}'
+      Description: 'Trigger AI training every 6 hours'
+      ScheduleExpression: 'rate(6 hours)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt PythonAITrainerFunction.Arn
+          Id: 'AITrainingTarget'
+          Input: '{"requestType": "training", "triggerSource": "cloudwatch"}'
+
+  EventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource: !GetAtt TradingWorkflowStateMachine.Arn
+
+Outputs:
+  TradingWorkflowArn:
+    Description: ARN of the Trading Workflow State Machine
+    Value: !GetAtt TradingWorkflowStateMachine.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-TradingWorkflowArn'
+
+  PaperTraderFunctionName:
+    Description: Name of the Paper Trader Lambda Function
+    Value: !Ref PaperTraderFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-PaperTraderFunctionName'
+
+  AITrainerFunctionName:
+    Description: Name of the AI Trainer Lambda Function  
+    Value: !Ref PythonAITrainerFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-AITrainerFunctionName'
+
+  DashboardUpdaterFunctionName:
+    Description: Name of the Dashboard Updater Lambda Function
+    Value: !Ref DashboardUpdaterFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-DashboardUpdaterFunctionName'
+
+  S3BucketName:
+    Description: S3 Bucket for AI Models
+    Value: !Ref S3BucketModels
+    Export:
+      Name: !Sub '${AWS::StackName}-S3BucketModels'
+
+  CryptoTableName:
+    Description: DynamoDB table for crypto price data
+    Value: !Ref CryptoPriceTable
+    Export:
+      Name: !Sub '${AWS::StackName}-CryptoTable'
+
+  ForexTableName:
+    Description: DynamoDB table for forex price data  
+    Value: !Ref ForexPriceTable
+    Export:
+      Name: !Sub '${AWS::StackName}-ForexTable'
+
+  TradingHistoryTableName:
+    Description: DynamoDB table for trading history
+    Value: !Ref TradingHistoryTable
+    Export:
+      Name: !Sub '${AWS::StackName}-TradingHistoryTable'

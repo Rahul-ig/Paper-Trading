@@ -1,0 +1,290 @@
+{
+  "Comment": "Trading Data Collection and AI Training Workflow",
+  "StartAt": "ParallelDataFetch",
+  "States": {
+    "ParallelDataFetch": {
+      "Type": "Parallel",
+      "Comment": "Fetch crypto, forex, and news data in parallel for efficiency",
+      "Branches": [
+        {
+          "StartAt": "FetchCryptoData",
+          "States": {
+            "FetchCryptoData": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${CryptoDataFetcherArn}",
+                "Payload": {
+                  "requestType": "realtime",
+                  "timestamp.$": "$$.Execution.StartTime"
+                }
+              },
+              "ResultPath": "$.cryptoResult",
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "Next": "CryptoFetchFailed",
+                  "ResultPath": "$.error"
+                }
+              ],
+              "End": true
+            },
+            "CryptoFetchFailed": {
+              "Type": "Pass",
+              "Result": {
+                "status": "failed",
+                "message": "Crypto data fetch failed"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "FetchForexData",
+          "States": {
+            "FetchForexData": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${ForexDataFetcherArn}",
+                "Payload": {
+                  "requestType": "realtime",
+                  "timestamp.$": "$$.Execution.StartTime"
+                }
+              },
+              "ResultPath": "$.forexResult",
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "Next": "ForexFetchFailed",
+                  "ResultPath": "$.error"
+                }
+              ],
+              "End": true
+            },
+            "ForexFetchFailed": {
+              "Type": "Pass",
+              "Result": {
+                "status": "failed",
+                "message": "Forex data fetch failed"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "FetchNewsData",
+          "States": {
+            "FetchNewsData": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${NewsDataFetcherArn}",
+                "Payload": {
+                  "requestType": "realtime",
+                  "timestamp.$": "$$.Execution.StartTime"
+                }
+              },
+              "ResultPath": "$.newsResult",
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "Next": "NewsFetchFailed",
+                  "ResultPath": "$.error"
+                }
+              ],
+              "End": true
+            },
+            "NewsFetchFailed": {
+              "Type": "Pass",
+              "Result": {
+                "status": "failed",
+                "message": "News data fetch failed"
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "Next": "EvaluateDataFetchResults"
+    },
+    "EvaluateDataFetchResults": {
+      "Type": "Pass",
+      "Comment": "Evaluate results from parallel data fetching",
+      "Parameters": {
+        "cryptoStatus.$": "$.0.cryptoResult.Payload.statusCode",
+        "forexStatus.$": "$.1.forexResult.Payload.statusCode",
+        "newsStatus.$": "$.2.newsResult.Payload.statusCode",
+        "timestamp.$": "$$.Execution.StartTime",
+        "executionName.$": "$$.Execution.Name"
+      },
+      "Next": "CheckTrainingSchedule"
+    },
+    "CheckTrainingSchedule": {
+      "Type": "Choice",
+      "Comment": "Check if AI should be retrained (every 6 hours)",
+      "Choices": [
+        {
+          "Variable": "$.shouldTrain",
+          "BooleanEquals": true,
+          "Next": "TriggerAITraining"
+        }
+      ],
+      "Default": "ProcessPaperTrades"
+    },
+    "TriggerAITraining": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Trigger Python AI model training",
+      "Parameters": {
+        "FunctionName": "${PythonAITrainerArn}",
+        "Payload": {
+          "requestType": "training",
+          "modelVersion.$": "$.modelVersion",
+          "timestamp.$": "$$.Execution.StartTime",
+          "dataSource": "dynamodb"
+        }
+      },
+      "ResultPath": "$.trainingResult",
+      "TimeoutSeconds": 1800,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "Next": "TrainingFailed",
+          "ResultPath": "$.trainingError"
+        }
+      ],
+      "Next": "SaveTrainingResults"
+    },
+    "SaveTrainingResults": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Comment": "Save AI training results to DynamoDB",
+      "Parameters": {
+        "TableName": "${AIModelMetadataTable}",
+        "Item": {
+          "modelId": {
+            "S.$": "$.trainingResult.Payload.modelId"
+          },
+          "timestamp": {
+            "S.$": "$$.Execution.StartTime"
+          },
+          "trainingStatus": {
+            "S.$": "$.trainingResult.Payload.status"
+          },
+          "accuracy": {
+            "N.$": "$.trainingResult.Payload.accuracy"
+          },
+          "s3ModelPath": {
+            "S.$": "$.trainingResult.Payload.s3ModelPath"
+          },
+          "executionArn": {
+            "S.$": "$$.Execution.Name"
+          }
+        }
+      },
+      "Next": "ProcessPaperTrades"
+    },
+    "TrainingFailed": {
+      "Type": "Pass",
+      "Comment": "Handle training failure",
+      "Result": {
+        "status": "training_failed",
+        "message": "AI training failed, proceeding with existing model"
+      },
+      "Next": "ProcessPaperTrades"
+    },
+    "ProcessPaperTrades": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Execute paper trading based on AI predictions",
+      "Parameters": {
+        "FunctionName": "${PaperTraderArn}",
+        "Payload": {
+          "requestType": "trade_execution",
+          "useLatestModel": true,
+          "walletBalance": 50.0,
+          "timestamp.$": "$$.Execution.StartTime",
+          "cryptoData.$": "$.cryptoResult",
+          "forexData.$": "$.forexResult",
+          "newsData.$": "$.newsResult"
+        }
+      },
+      "ResultSelector": {
+        "tradingData.$": "$.Payload"
+      },
+      "ResultPath": "$.trading",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 3,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "UpdateDashboard"
+    },
+    "UpdateDashboard": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Update dashboard data and trigger notifications",
+      "Parameters": {
+        "FunctionName": "${DashboardUpdaterArn}",
+        "Payload": {
+          "requestType": "update",
+          "executionData": {
+            "cryptoResult.$": "$.cryptoResult",
+            "forexResult.$": "$.forexResult",
+            "newsResult.$": "$.newsResult",
+            "tradingResult.$": "$.trading.tradingData",
+            "trainingResult.$": "$.trainingResult"
+          },
+          "timestamp.$": "$$.Execution.StartTime"
+        }
+      },
+      "ResultPath": "$.dashboardResult",
+      "Next": "WorkflowComplete"
+    },
+    "WorkflowComplete": {
+      "Type": "Pass",
+      "Comment": "Workflow completed successfully",
+      "Result": {
+        "status": "completed",
+        "message": "Trading workflow executed successfully"
+      },
+      "End": true
+    }
+  }
+}
