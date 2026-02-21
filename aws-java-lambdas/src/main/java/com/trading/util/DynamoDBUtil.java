@@ -7,6 +7,7 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.trading.model.CryptoPrice;
 import com.trading.model.ForexPrice;
@@ -65,6 +66,10 @@ public class DynamoDBUtil {
                 item.put("source", AttributeValue.builder().s(cryptoPrice.getSource()).build());
             }
             
+            // TTL: 30 days from now - DynamoDB will auto-delete expired items
+            long ttl = Instant.now().plusSeconds(30L * 24 * 60 * 60).getEpochSecond();
+            item.put("ttl", AttributeValue.builder().n(String.valueOf(ttl)).build());
+            
             // Add full JSON data
             String jsonData = objectMapper.writeValueAsString(cryptoPrice);
             item.put("data", AttributeValue.builder().s(jsonData).build());
@@ -110,6 +115,10 @@ public class DynamoDBUtil {
             if (forexPrice.getSource() != null) {
                 item.put("source", AttributeValue.builder().s(forexPrice.getSource()).build());
             }
+            
+            // TTL: 30 days from now - DynamoDB will auto-delete expired items
+            long ttl = Instant.now().plusSeconds(30L * 24 * 60 * 60).getEpochSecond();
+            item.put("ttl", AttributeValue.builder().n(String.valueOf(ttl)).build());
             
             // Add full JSON data
             String jsonData = objectMapper.writeValueAsString(forexPrice);

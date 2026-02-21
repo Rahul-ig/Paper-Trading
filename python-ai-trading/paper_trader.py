@@ -483,6 +483,9 @@ class PaperTrader:
                     'predictedChange': str(prediction['predicted_change_pct'])
                 }
                 
+                # TTL: 30 days from now - DynamoDB will auto-delete expired items
+                trade['ttl'] = int((datetime.utcnow() + timedelta(days=30)).timestamp())
+                
                 # Update portfolio
                 self.portfolio[symbol] = {
                     'quantity': quantity,
@@ -529,6 +532,9 @@ class PaperTrader:
                     'walletBalanceBefore': str(self.wallet_balance),
                     'originalTradeId': position['trade_id']
                 }
+                
+                # TTL: 30 days from now
+                trade['ttl'] = int((datetime.utcnow() + timedelta(days=30)).timestamp())
                 
                 # Update wallet balance
                 self.wallet_balance += current_price * quantity
@@ -611,6 +617,9 @@ class PaperTrader:
                 'walletBalanceBefore': str(self.wallet_balance),
                 'originalTradeId': position['trade_id']
             }
+            
+            # TTL: 30 days from now
+            trade['ttl'] = int((datetime.utcnow() + timedelta(days=30)).timestamp())
             
             # Update wallet balance
             self.wallet_balance += current_price * quantity
