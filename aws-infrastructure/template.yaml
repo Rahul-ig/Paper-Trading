@@ -185,7 +185,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'CryptoDataFetcher-${Environment}'
-      CodeUri: ../aws-java-lambdas/target/crypto-forex-lambdas-1.0.0.jar
+      CodeUri: ../aws-java-lambdas/
       Handler: com.trading.handler.CryptoDataFetcher::handleRequest
       Description: Fetches cryptocurrency price data from multiple APIs
       Policies:
@@ -204,7 +204,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'ForexDataFetcher-${Environment}'
-      CodeUri: ../aws-java-lambdas/target/crypto-forex-lambdas-1.0.0.jar
+      CodeUri: ../aws-java-lambdas/
       Handler: com.trading.handler.ForexDataFetcher::handleRequest
       Description: Fetches forex exchange rate data from multiple APIs
       Policies:
@@ -223,7 +223,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'NewsDataFetcher-${Environment}'
-      CodeUri: ../aws-java-lambdas/target/crypto-forex-lambdas-1.0.0.jar
+      CodeUri: ../aws-java-lambdas/
       Handler: com.trading.handler.NewsDataFetcher::handleRequest
       Description: Fetches financial news and sentiment data
       Timeout: 600

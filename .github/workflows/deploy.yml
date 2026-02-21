@@ -34,26 +34,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ─── Java Build ───
+      # ─── Java Setup (needed by SAM build) ───
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'corretto'
           java-version: '21'
           cache: 'maven'
-
-      - name: Build Java Lambdas
-        working-directory: aws-java-lambdas
-        run: mvn clean package -q -DskipTests=false
-
-      - name: Verify JAR artifact
-        run: |
-          JAR_PATH="aws-java-lambdas/target/crypto-forex-lambdas-1.0.0.jar"
-          if [ ! -f "$JAR_PATH" ]; then
-            echo "ERROR: Expected JAR not found at $JAR_PATH"
-            exit 1
-          fi
-          echo "JAR size: $(du -h $JAR_PATH | cut -f1)"
 
       # ─── Python Setup ───
       - name: Set up Python 3.12
