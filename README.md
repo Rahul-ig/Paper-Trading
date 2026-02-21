@@ -56,7 +56,47 @@ sam deploy --guided
 ### 3. Access Dashboard
 After deployment, access your trading dashboard at the URL provided in the output.
 
-## 📁 Project Structure
+## � CI/CD Pipeline
+
+This project uses **GitHub Actions** to automatically build and deploy to AWS on every push to `main`.
+
+### Setup Required GitHub Secrets
+
+Go to your repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** and add:
+
+| Secret Name | Description | Required |
+|---|---|---|
+| `AWS_ACCESS_KEY_ID` | IAM user access key with deployment permissions | ✅ |
+| `AWS_SECRET_ACCESS_KEY` | IAM user secret access key | ✅ |
+| `AWS_REGION` | AWS region (e.g. `us-east-1`) | ✅ |
+| `S3_BUCKET_MODELS` | S3 bucket for AI models (default: `forex-ai-models`) | Optional |
+
+### Required IAM Permissions
+
+The IAM user needs these permissions for SAM deployment:
+- `cloudformation:*` — Stack management
+- `lambda:*` — Lambda function deployment
+- `iam:*` — Role creation for Lambdas
+- `s3:*` — Artifact upload & model storage
+- `dynamodb:*` — Table creation
+- `states:*` — Step Functions
+- `events:*` — CloudWatch Events/Schedules
+- `logs:*` — CloudWatch Logs
+
+> **Tip**: Use the AWS managed policy `AdministratorAccess` for development, or create a scoped policy for production.
+
+### Pipeline Stages
+
+1. **Build Java Lambdas** — Maven compiles & tests the data-fetcher JARs (JDK 21)
+2. **SAM Build** — Packages all Lambda functions & layers
+3. **SAM Deploy** — Deploys the CloudFormation stack to AWS
+4. **Validation** — Verifies the stack is in a healthy state
+
+### Manual Deployment
+
+You can also trigger a deployment manually from the **Actions** tab and select the target environment (`dev`, `staging`, `prod`).
+
+## �📁 Project Structure
 
 ```
 Paper-Trading/

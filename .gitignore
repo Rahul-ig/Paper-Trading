@@ -50,7 +50,6 @@ desktop.ini
 
 # Terraform / SAM
 .aws-sam/
-samconfig.toml
 
 # Jupyter
 .ipynb_checkpoints/
@@ -65,4 +64,4 @@ python-ai-trading/package/*.whl
 python-ai-trading/package/*.tar.gz
 
 # Java upgrade tool artifacts
-.github/
+# .github/  -- kept for CI/CD workflows
