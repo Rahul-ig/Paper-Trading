@@ -288,6 +288,8 @@ Resources:
       MemorySize: 1024
       Timeout: 300
       Description: Executes paper trades based on AI predictions
+      Layers:
+        - !Ref MLDependenciesLayer
       Environment:
         Variables:
           INITIAL_WALLET_BALANCE: !Ref InitialWalletBalance
@@ -313,6 +315,8 @@ Resources:
       MemorySize: 512
       Timeout: 120
       Description: Updates dashboard data and sends notifications
+      Layers:
+        - !Ref MLDependenciesLayer
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref TradingHistoryTable
