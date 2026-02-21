@@ -4,16 +4,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment'
-        required: true
-        default: 'dev'
-        type: choice
-        options:
-          - dev
-          - staging
-          - prod
 
 permissions:
   id-token: write
@@ -22,8 +12,7 @@ permissions:
 env:
   AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
   SAM_TEMPLATE: aws-infrastructure/template.yaml
-  STACK_NAME: paper-trading-${{ github.event.inputs.environment || 'dev' }}
-  ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+  STACK_NAME: paper-trading
 
 jobs:
   build-and-deploy:
@@ -98,7 +87,6 @@ jobs:
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --parameter-overrides \
-              Environment=${{ env.ENVIRONMENT }} \
               S3BucketModels=${{ secrets.S3_BUCKET_MODELS || 'forex-ai-models' }} \
             --region ${{ env.AWS_REGION }} \
             --resolve-s3

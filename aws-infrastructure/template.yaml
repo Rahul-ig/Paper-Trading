@@ -3,12 +3,6 @@ Transform: AWS::Serverless-2016-10-31
 Description: 'Crypto & Forex AI Trading System - Complete AWS Infrastructure'
 
 Parameters:
-  Environment:
-    Type: String
-    Default: 'dev'
-    AllowedValues: [dev, staging, prod]
-    Description: Environment name
-  
   S3BucketModels:
     Type: String
     Default: 'forex-ai-models'
@@ -26,7 +20,6 @@ Globals:
     Timeout: 300
     Environment:
       Variables:
-        ENVIRONMENT: !Ref Environment
         REGION: !Ref 'AWS::Region'
         S3_BUCKET_MODELS: !Ref S3BucketModels
         DYNAMODB_CRYPTO_TABLE: !Ref CryptoPriceTable
@@ -43,7 +36,7 @@ Resources:
   CryptoPriceTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'CryptoPriceData-${Environment}'
+      TableName: CryptoPriceData
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: symbol
@@ -61,15 +54,13 @@ Resources:
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
         - Key: Purpose
           Value: CryptoTradingData
 
   ForexPriceTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'ForexPriceData-${Environment}'
+      TableName: ForexPriceData
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: pair
@@ -87,15 +78,13 @@ Resources:
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
         - Key: Purpose
           Value: ForexTradingData
 
   TradingHistoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'TradingHistory-${Environment}'
+      TableName: TradingHistory
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: tradeId
@@ -122,15 +111,13 @@ Resources:
         AttributeName: ttl
         Enabled: true
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
         - Key: Purpose
           Value: PaperTradingHistory
 
   AIModelMetadataTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'AIModelMetadata-${Environment}'
+      TableName: AIModelMetadata
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: modelId
@@ -143,15 +130,13 @@ Resources:
         - AttributeName: timestamp
           KeyType: RANGE
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
         - Key: Purpose
           Value: AIModelTracking
 
   NewsDataTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'NewsData-${Environment}'
+      TableName: NewsData
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: newsId
@@ -178,8 +163,6 @@ Resources:
         AttributeName: ttl
         Enabled: true
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
         - Key: Purpose
           Value: NewsAndSentimentData
 
@@ -187,7 +170,7 @@ Resources:
   CryptoDataFetcherFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'CryptoDataFetcher-${Environment}'
+      FunctionName: CryptoDataFetcher
       CodeUri: ../aws-java-lambdas/
       Handler: com.trading.handler.CryptoDataFetcher::handleRequest
       Description: Fetches cryptocurrency price data from multiple APIs
@@ -206,7 +189,7 @@ Resources:
   ForexDataFetcherFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'ForexDataFetcher-${Environment}'
+      FunctionName: ForexDataFetcher
       CodeUri: ../aws-java-lambdas/
       Handler: com.trading.handler.ForexDataFetcher::handleRequest
       Description: Fetches forex exchange rate data from multiple APIs
@@ -225,7 +208,7 @@ Resources:
   NewsDataFetcherFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'NewsDataFetcher-${Environment}'
+      FunctionName: NewsDataFetcher
       CodeUri: ../aws-java-lambdas/
       Handler: com.trading.handler.NewsDataFetcher::handleRequest
       Description: Fetches financial news and sentiment data
@@ -244,7 +227,7 @@ Resources:
   MLDependenciesLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: !Sub 'ml-dependencies-${Environment}'
+      LayerName: ml-dependencies
       Description: Machine learning dependencies for AI trainer (scikit-learn, scipy, numpy, pandas, joblib)
       ContentUri: ../python-ai-trading/layers/ml-deps/
       CompatibleRuntimes:
@@ -254,7 +237,7 @@ Resources:
   PythonAITrainerFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'PythonAITrainer-${Environment}'
+      FunctionName: PythonAITrainer
       CodeUri: ../python-ai-trading/ai-trainer-package/
       Handler: ai_trainer.lambda_handler
       Runtime: python3.12
@@ -284,7 +267,7 @@ Resources:
   PaperTraderFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'PaperTrader-${Environment}'
+      FunctionName: PaperTrader
       CodeUri: ../python-ai-trading/package/
       Handler: paper_trader.lambda_handler
       Runtime: python3.12
@@ -311,7 +294,7 @@ Resources:
   DashboardUpdaterFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'DashboardUpdater-${Environment}'
+      FunctionName: DashboardUpdater
       CodeUri: ../python-ai-trading/package/
       Handler: dashboard_updater.lambda_handler
       Runtime: python3.12
@@ -387,10 +370,10 @@ Resources:
   TradingWorkflowStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
-      StateMachineName: !Sub 'TradingWorkflow-${Environment}'
+      StateMachineName: TradingWorkflow
       DefinitionString: !Sub |
         {
-          "Comment": "Trading Data Collection and AI Training Workflow",
+          "Comment": "Complete Trading Pipeline: Data Collection -> AI Training -> Paper Trading -> Dashboard",
           "StartAt": "ParallelDataFetch",
           "States": {
             "ParallelDataFetch": {
@@ -420,7 +403,7 @@ Resources:
                   "States": {
                     "FetchForexData": {
                       "Type": "Task",
-                      "Resource": "arn:aws:states:::lambda:invoke", 
+                      "Resource": "arn:aws:states:::lambda:invoke",
                       "Parameters": {
                         "FunctionName": "${ForexDataFetcherFunction}",
                         "Payload": {
@@ -442,7 +425,7 @@ Resources:
                       "Parameters": {
                         "FunctionName": "${NewsDataFetcherFunction}",
                         "Payload": {
-                          "requestType": "stepfunction", 
+                          "requestType": "stepfunction",
                           "timestamp.$": "$$.Execution.StartTime"
                         }
                       },
@@ -453,11 +436,44 @@ Resources:
                 }
               ],
               "ResultPath": "$.fetchResults",
+              "Next": "TrainAIModel"
+            },
+            "TrainAIModel": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Comment": "Train AI model on latest data",
+              "Parameters": {
+                "FunctionName": "${PythonAITrainerFunction}",
+                "Payload": {
+                  "requestType": "training",
+                  "modelType": "ensemble",
+                  "timestamp.$": "$$.Execution.StartTime"
+                }
+              },
+              "ResultPath": "$.trainingResult",
+              "TimeoutSeconds": 900,
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+                  "IntervalSeconds": 10,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "ProcessPaperTrades",
+                  "ResultPath": "$.trainingError",
+                  "Comment": "Training failed, proceed with existing model"
+                }
+              ],
               "Next": "ProcessPaperTrades"
             },
             "ProcessPaperTrades": {
               "Type": "Task",
               "Resource": "arn:aws:states:::lambda:invoke",
+              "Comment": "Execute paper trades using AI predictions",
               "Parameters": {
                 "FunctionName": "${PaperTraderFunction}",
                 "Payload": {
@@ -475,6 +491,7 @@ Resources:
             "UpdateDashboard": {
               "Type": "Task",
               "Resource": "arn:aws:states:::lambda:invoke",
+              "Comment": "Update dashboard with latest data",
               "Parameters": {
                 "FunctionName": "${DashboardUpdaterFunction}",
                 "Payload": {
@@ -488,17 +505,15 @@ Resources:
         }
       RoleArn: !GetAtt TradingWorkflowRole.Arn
       Tags:
-        - Key: Environment
-          Value: !Ref Environment
         - Key: Purpose
           Value: TradingOrchestration
 
-  # CloudWatch Events for triggering workflows
+  # CloudWatch Event to trigger the complete workflow every 30 minutes
   TradingWorkflowScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub 'TradingWorkflowSchedule-${Environment}'
-      Description: 'Trigger trading workflow every 30 minutes'
+      Name: TradingWorkflowSchedule
+      Description: 'Trigger complete trading workflow every 30 minutes (data + training + trading + dashboard)'
       ScheduleExpression: 'rate(30 minutes)'
       State: ENABLED
       Targets:
@@ -506,18 +521,6 @@ Resources:
           Id: 'TradingWorkflowTarget'
           RoleArn: !GetAtt EventBridgeRole.Arn
           Input: '{"requestType": "scheduled", "triggerSource": "cloudwatch"}'
-
-  AITrainingScheduleRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub 'AITrainingSchedule-${Environment}'
-      Description: 'Trigger AI training every 6 hours'
-      ScheduleExpression: 'rate(6 hours)'
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt PythonAITrainerFunction.Arn
-          Id: 'AITrainingTarget'
-          Input: '{"requestType": "training", "triggerSource": "cloudwatch"}'
 
   EventBridgeRole:
     Type: AWS::IAM::Role
